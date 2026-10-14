@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react'
-import { URL } from './contents'
 import HistoryBar from './HistoryBar'
 import QuestionAnswer from './QuestionAnswer'
 
@@ -15,6 +14,8 @@ const App = () => {
     if (!data && !selectedHistory) {
       return false
     }
+
+
     const payloadData = data ? data : selectedHistory
     const Payload = {
       contents: [
@@ -39,42 +40,51 @@ const App = () => {
       }
 
     }
+
     SetLoader(true)
-    const response = await fetch(URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": Generated
-      },
 
-      body: JSON.stringify(Payload)
-    })
+    try {
+      const response = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(Payload)
+      })
 
-    const result = await response.json()
-    let DataResult = result.candidates[0].content.parts[0].text
-    DataResult = DataResult.split("* ")
-    DataResult = DataResult.map((item) => item.trim())
+      const result = await response.json()
 
-    SetAnswer((prevAnswer) => [
-      ...prevAnswer,
-      { type: 'q', text: data ? data : selectedHistory },
-      { type: 'a', text: DataResult }
-    ])
+      if (!response.ok) {
+        throw new Error(result.error || "Failed to get AI response")
+      }
 
+      let DataResult = result.candidates[0].content.parts[0].text
 
-    console.log([
-      ...answer,
-      { type: 'q', text: data },
-      { type: 'a', text: DataResult }
-    ])
+      DataResult = DataResult.split("* ")
+      DataResult = DataResult.map((item) => item.trim())
 
-    setData("")
+      SetAnswer((prevAnswer) => [
+        ...prevAnswer,
+        { type: "q", text: payloadData },
+        { type: "a", text: DataResult }
+      ])
 
-    setTimeout(() => {
-      DataRef.current.scrollTop = DataRef.current.scrollHeight;
-    }, 500);
+      setData("")
 
-    SetLoader(false)
+      setTimeout(() => {
+        if (DataRef.current) {
+          DataRef.current.scrollTop = DataRef.current.scrollHeight
+        }
+      }, 500)
+
+    } catch (error) {
+      console.error("AI request failed:", error)
+      alert(error.message || "Something went wrong. Please try again.")
+
+    } finally {
+      SetLoader(false)
+    }
+
   }
   console.log(localHistory)
 
@@ -113,7 +123,7 @@ const App = () => {
             <ul>
               {
                 answer.map((item, index) => (
-                  <QuestionAnswer key={index } item={item} index={index} />
+                  <QuestionAnswer key={index} item={item} index={index} />
                 ))
               }
             </ul>
