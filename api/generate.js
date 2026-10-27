@@ -23,29 +23,48 @@ export default async function handler(req, res) {
             });
         }
 
-        const response = await fetch(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent",
-            {
+        const url =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent";
+
+        let response;
+        let responseText;
+        let result;
+
+        // Try a maximum of 3 times for temporary 503 errors.
+        for (let attempt = 0; attempt < 3; attempt++) {
+            response = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     "x-goog-api-key": apiKey
                 },
                 body: JSON.stringify(req.body)
-            }
-        );
-
-        const responseText = await response.text();
-        let result;
-
-        try {
-            result = JSON.parse(responseText);
-        } catch {
-            console.error("Gemini returned a non-JSON response.");
-
-            return res.status(502).json({
-                error: "Gemini returned an invalid response."
             });
+
+            responseText = await response.text();
+
+            try {
+                result = JSON.parse(responseText);
+            } catch {
+                console.error("Gemini returned a non-JSON response.");
+
+                return res.status(502).json({
+                    error: "Gemini returned an invalid response."
+                });
+            }
+
+            // Retry only when Gemini reports temporary unavailability.
+            if (response.status !== 503 || attempt === 2) {
+                break;
+            }
+
+            const delay = 1000 * (2 ** attempt);
+
+            console.warn(
+                `Gemini returned 503. Retry ${attempt + 1}/2 in ${delay}ms.`
+            );
+
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
 
         if (!response.ok) {
